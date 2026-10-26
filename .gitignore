@@ -1,0 +1,26 @@
+# Personal credentials and tokens (CRITICAL - DO NOT COMMIT)
+data/rclone.conf
+data/config.json
+data/*.conf
+data/*.json
+!data/config.example.json
+
+# Binaries (rclone executable is downloaded separately)
+bin/rclone.exe
+bin/*.exe
+
+# Node dependencies & logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary & partial transfer files
+*.tmp
+*.partial
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini

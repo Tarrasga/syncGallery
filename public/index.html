@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>syncGallery - Central de Fotos & Vídeos</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-content">
+        <div class="brand">
+          <div class="logo-icon">📸</div>
+          <div>
+            <h1>syncGallery</h1>
+            <p class="subtitle">Centralize e junte todas as fotos e vídeos do Google Drive, OneDrive, Pen Drives e Discos numa única pasta</p>
+          </div>
+        </div>
+        <div class="header-badges">
+          <div id="system-status-badge" class="badge badge-ready">
+            <span class="status-dot"></span>
+            <span id="system-status-text">Pronto a sincronizar</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="app-nav">
+        <button type="button" class="nav-tab active" id="tab-backup">
+          📥 Backup & Sincronização
+        </button>
+        <button type="button" class="nav-tab" id="tab-calendar">
+          📅 Calendário & Memórias ("Neste Dia")
+          <span class="nav-badge" id="today-memories-badge" style="display: none;">0</span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="main-content">
+
+      <!-- VIEW 1: BACKUP & CONFIG -->
+      <div id="view-backup">
+      
+      <!-- Top Grid: Sources & Destination -->
+      <div class="cards-grid">
+        
+        <!-- CARD 1: Fontes de Origem -->
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">📥</span>
+              <h2>Fontes de Origem</h2>
+            </div>
+            <span class="info-pill">Nuvens, Pen Drives e Discos</span>
+          </div>
+
+          <div class="sources-list">
+            
+            <!-- Google Drive Item -->
+            <div class="source-item" id="source-gdrive-box">
+              <div class="source-main">
+                <div class="source-info">
+                  <div class="cloud-logo gdrive-logo">
+                    <svg viewBox="0 0 87.3 78" width="28" height="25">
+                      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="source-title-row">
+                      <span class="source-name">Google Drive</span>
+                      <span id="gdrive-status-badge" class="tag tag-not-connected">Não Conectado</span>
+                    </div>
+                    <p class="source-desc">Fotografias e vídeos guardados no seu Google Drive</p>
+                  </div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="check-gdrive" checked>
+                  <span class="slider round"></span>
+                </label>
+              </div>
+
+              <div class="source-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-auth-gdrive">
+                  🔑 Conectar Google Drive
+                </button>
+                <span class="auth-hint">Abre a página oficial da Google no seu navegador</span>
+              </div>
+            </div>
+
+            <!-- OneDrive Item -->
+            <div class="source-item" id="source-onedrive-box">
+              <div class="source-main">
+                <div class="source-info">
+                  <div class="cloud-logo onedrive-logo">
+                    <svg viewBox="0 0 24 24" width="28" height="28" fill="#0078d4">
+                      <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="source-title-row">
+                      <span class="source-name">Microsoft OneDrive</span>
+                      <span id="onedrive-status-badge" class="tag tag-not-connected">Não Conectado</span>
+                    </div>
+                    <p class="source-desc">Fotografias da galeria e câmara do OneDrive</p>
+                  </div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="check-onedrive" checked>
+                  <span class="slider round"></span>
+                </label>
+              </div>
+
+              <!-- OneDrive Mode selector -->
+              <div class="onedrive-modes">
+                <label class="radio-label">
+                  <input type="radio" name="onedrive-mode" value="local" id="mode-onedrive-local" checked>
+                  <span>
+                    <strong>Sincronização Local (Mais Rápido)</strong>
+                    <small>Copia diretamente da sua pasta local <code>C:\Users\cac_7\OneDrive</code> sem gastar internet.</small>
+                  </span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="onedrive-mode" value="cloud" id="mode-onedrive-cloud">
+                  <span>
+                    <strong>Conexão Nuvem Direta</strong>
+                    <small>Descarrega da nuvem via API oficial da Microsoft.</small>
+                  </span>
+                </label>
+              </div>
+
+              <div class="source-actions" id="onedrive-auth-container" style="display: none;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-auth-onedrive">
+                  🔑 Conectar OneDrive
+                </button>
+                <span class="auth-hint">Abre a página oficial da Microsoft no seu navegador</span>
+              </div>
+            </div>
+
+            <!-- Pen Drives & Discos Externos Item -->
+            <div class="source-item" id="source-disks-box">
+              <div class="source-main">
+                <div class="source-info">
+                  <div class="cloud-logo disk-logo">
+                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                      <line x1="6" y1="12" x2="6" y2="12.01"></line>
+                      <line x1="10" y1="12" x2="10" y2="12.01"></line>
+                      <line x1="14" y1="12" x2="14" y2="12.01"></line>
+                      <line x1="18" y1="12" x2="18" y2="12.01"></line>
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="source-title-row">
+                      <span class="source-name">Pen Drives & Discos Externos</span>
+                      <span id="disk-status-badge" class="tag tag-not-connected">Inativo</span>
+                    </div>
+                    <p class="source-desc">Junte todas as fotos e vídeos de pens ou discos externos conectados</p>
+                  </div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="check-local-disks">
+                  <span class="slider round"></span>
+                </label>
+              </div>
+
+              <!-- Container de configuração da Pen Drive / Disco -->
+              <div class="disk-config-panel" id="disk-container" style="display: none;">
+                <div>
+                  <span class="field-label">Unidade ou pasta da Pen Drive / Disco de onde copiar:</span>
+                  <div class="input-with-button">
+                    <input type="text" id="input-disk-source" value="F:\" placeholder="Ex: F:\ ou D:\Fotos">
+                    <button type="button" class="btn btn-outline" id="btn-refresh-drives" title="Atualizar deteção de pen drives">
+                      🔄 Detetar Discos
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="quick-drives">
+                  <span class="quick-drives-title">Clique para selecionar a pen drive ou disco de origem:</span>
+                  <div class="drives-pills" id="source-drives-list">
+                    <!-- Preenchido dinamicamente com as pens e discos detetados -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- CARD 2: Destino & Filtros -->
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">📁</span>
+              <h2>Destino do Backup</h2>
+            </div>
+            <span class="info-pill">Onde guardar as fotos</span>
+          </div>
+
+          <div class="destination-section">
+            <label for="input-target-dir" class="field-label">Pasta no computador ou disco externo:</label>
+            <div class="input-with-button">
+              <input type="text" id="input-target-dir" value="E:\Backup_Fotos" placeholder="Ex: E:\Backup_Fotos ou D:\Backup">
+              <button type="button" class="btn btn-outline" id="btn-open-folder" title="Abrir pasta no Explorador de Ficheiros">
+                📂 Abrir
+              </button>
+            </div>
+
+            <!-- Quick drive selectors -->
+            <div class="quick-drives">
+              <span class="quick-drives-title">Atalhos rápidos de discos detetados:</span>
+              <div class="drives-pills" id="drives-list">
+                <!-- Dynamically populated -->
+                <button type="button" class="pill-btn" data-path="E:\Backup_Fotos">💾 Disco E:\Backup_Fotos</button>
+                <button type="button" class="pill-btn" data-path="C:\Backup_Fotos">💾 Disco C:\Backup_Fotos</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-divider"></div>
+
+          <!-- Filtros de Ficheiros -->
+          <div class="filters-section">
+            <h3 class="subsection-title">⚙️ Ficheiros e Organização</h3>
+            
+            <div class="options-grid">
+              <label class="checkbox-label">
+                <input type="checkbox" id="check-photos" checked>
+                <span>
+                  <strong>Fotografias</strong>
+                  <small>JPG, PNG, HEIC, RAW, WEBP, DNG, etc.</small>
+                </span>
+              </label>
+
+              <label class="checkbox-label">
+                <input type="checkbox" id="check-videos" checked>
+                <span>
+                  <strong>Vídeos</strong>
+                  <small>MP4, MOV, MKV, AVI, etc.</small>
+                </span>
+              </label>
+
+              <label class="checkbox-label">
+                <input type="checkbox" id="check-incremental" checked>
+                <span>
+                  <strong>Backup Incremental</strong>
+                  <small>Ignora fotos já transferidas (poupa tempo e espaço)</small>
+                </span>
+              </label>
+            </div>
+
+            <!-- Organização no Destino -->
+            <div style="margin-top: 14px;">
+              <span class="field-label">Como guardar os ficheiros no disco de destino:</span>
+              <div class="onedrive-modes">
+                <label class="radio-label">
+                  <input type="radio" name="folder-org" value="flat" id="org-flat" checked>
+                  <span>
+                    <strong>⚡ Tudo Direto na Pasta (Sem Subpastas)</strong>
+                    <small>Todas as fotos e vídeos de todas as origens ficam juntos diretamente na pasta escolhida, sem criar pastas.</small>
+                  </span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="folder-org" value="by_year" id="org-by-year">
+                  <span>
+                    <strong>📅 Separar por Anos (ex: /2024/, /2023/...)</strong>
+                    <small>Cria automaticamente pastas por cada ano com base na data em que a foto ou vídeo foi tirado.</small>
+                  </span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="folder-org" value="by_cloud" id="org-by-cloud">
+                  <span>
+                    <strong>Separar por Origem</strong>
+                    <small>Cria as pastas <code>/Google_Drive/</code>, <code>/OneDrive/</code> e <code>/Discos_Externos/</code>.</small>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Botões de Ação Imediata para Organização -->
+            <div class="organize-now-bar" style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-color);">
+              <span class="field-label" style="margin-bottom: 8px;">Organizar agora as fotos já existentes no destino:</span>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-organize-years">
+                  📅 Separar Fotos Atuais por Anos
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-flatten-now">
+                  ⚡ Desfazer Pastas (Juntar Tudo)
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+      </div>
+
+      <!-- Action & Progress Dashboard Card -->
+      <section class="card action-card">
+        <div class="action-bar">
+          <div class="action-info">
+            <h2 id="main-status-heading">Pronto para iniciar</h2>
+            <p id="main-status-subheading">Clique no botão para iniciar a cópia segura das suas fotos.</p>
+          </div>
+          <div class="action-buttons">
+            <button type="button" class="btn btn-primary btn-lg" id="btn-start-backup">
+              🚀 Iniciar Cópia de Segurança
+            </button>
+            <button type="button" class="btn btn-danger btn-lg" id="btn-stop-backup" style="display: none;">
+              ⏹️ Parar Backup
+            </button>
+          </div>
+        </div>
+
+        <!-- Progress Container (Animated & Visible during sync) -->
+        <div class="progress-panel" id="progress-panel" style="display: none;">
+          
+          <div class="progress-bar-wrapper">
+            <div class="progress-bar-fill" id="progress-bar" style="width: 0%;"></div>
+          </div>
+          
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-label">Progresso Total</span>
+              <span class="stat-value" id="stat-percent">0%</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Velocidade</span>
+              <span class="stat-value" id="stat-speed">0 MB/s</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Ficheiros</span>
+              <span class="stat-value" id="stat-files">0 / 0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Dados Transferidos</span>
+              <span class="stat-value" id="stat-bytes">0 MB / 0 MB</span>
+            </div>
+          </div>
+
+          <!-- Current File Card -->
+          <div class="current-file-box">
+            <div class="pulse-icon">📥</div>
+            <div class="current-file-text">
+              <span class="file-label">A descarregar agora:</span>
+              <span class="file-name" id="current-file-name">A preparar lista de ficheiros...</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Live Log Terminal Section -->
+        <div class="log-section">
+          <div class="log-header" id="toggle-log-btn">
+            <div class="log-title">
+              <span>📋 Registo de Atividade em Tempo Real</span>
+              <span class="log-count" id="log-count-badge">0 eventos</span>
+            </div>
+            <button type="button" class="btn-text" id="btn-toggle-log">Ocultar</button>
+          </div>
+          <div class="log-terminal" id="log-terminal">
+            <div class="log-entry log-info">
+              <span class="log-time">[--:--:--]</span>
+              <span class="log-msg">Aplicação pronta. Conecte as suas contas para iniciar.</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- History & Summary Section -->
+      <section class="card history-card" id="history-section">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="card-icon">🕒</span>
+            <h2>Último Backup Realizado</h2>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" id="btn-open-folder-summary">
+            📂 Ver Fotos no Disco
+          </button>
+        </div>
+        <div id="history-details" class="history-content">
+          <p class="empty-history">Ainda não foi realizada nenhuma cópia de segurança nesta sessão.</p>
+        </div>
+      </section>
+
+      </div> <!-- /view-backup -->
+
+      <!-- VIEW 2: CALENDÁRIO & MEMÓRIAS (NESTE DIA) -->
+      <div id="view-calendar" style="display: none;">
+        
+        <!-- Card: Destaque do Dia (Hoje) -->
+        <section class="card spotlight-card">
+          <div class="spotlight-header">
+            <div class="spotlight-title-group">
+              <span class="spotlight-pill">🌟 DESTAQUE DO DIA</span>
+              <h2 id="spotlight-title">Neste Dia ao Longo dos Anos (Hoje)</h2>
+              <p id="spotlight-subtitle" class="spotlight-subtitle">A procurar recordações tiradas neste dia...</p>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-refresh-calendar-data">
+              🔄 Atualizar Memórias
+            </button>
+          </div>
+          
+          <div class="spotlight-content" id="spotlight-content">
+            <!-- Dinamicamente preenchido com fotos do dia de hoje -->
+          </div>
+        </section>
+
+        <!-- Calendar & Day Explorer Grid -->
+        <div class="calendar-layout-grid">
+          
+          <!-- Left: Interactive Calendar Card -->
+          <section class="card calendar-card">
+            <div class="calendar-header-controls">
+              <button type="button" class="btn btn-outline btn-sm" id="cal-prev-month" title="Mês Anterior">◀</button>
+              <div class="calendar-month-title">
+                <span id="cal-month-name">Outubro</span>
+                <span id="cal-year-number">2026</span>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" id="cal-next-month" title="Próximo Mês">▶</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="cal-btn-today" style="margin-left: auto;">
+                📍 Ir para Hoje
+              </button>
+            </div>
+
+            <!-- Weekday Labels -->
+            <div class="calendar-weekdays">
+              <span>Seg</span>
+              <span>Ter</span>
+              <span>Qua</span>
+              <span>Qui</span>
+              <span>Sex</span>
+              <span>Sáb</span>
+              <span>Dom</span>
+            </div>
+
+            <!-- Days Grid -->
+            <div class="calendar-days-grid" id="calendar-days">
+              <!-- Gerado dinamicamente -->
+            </div>
+
+            <!-- Calendar Legend -->
+            <div class="calendar-legend">
+              <span class="legend-item"><span class="legend-dot active"></span> Selecionado</span>
+              <span class="legend-item"><span class="legend-dot has-photos"></span> Tem Fotos</span>
+              <span class="legend-item"><span class="legend-dot today"></span> Hoje</span>
+            </div>
+          </section>
+
+          <!-- Right: Memories of Selected Day -->
+          <section class="card memories-card">
+            <div class="card-header">
+              <div class="card-title">
+                <span class="card-icon">📸</span>
+                <div>
+                  <h2 id="selected-day-title">Fotos de Hoje</h2>
+                  <span class="info-pill" id="selected-day-count">A carregar...</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="memories-container" id="memories-container">
+              <!-- Agrupado por anos com grelha de fotos -->
+            </div>
+          </section>
+
+        </div>
+
+      </div> <!-- /view-calendar -->
+
+    </main>
+
+    <!-- Lightbox Modal para Visualizar Fotos e Vídeos em Grande -->
+    <div class="lightbox-modal" id="lightbox-modal" style="display: none;">
+      <div class="lightbox-backdrop" id="lightbox-backdrop"></div>
+      <div class="lightbox-dialog">
+        <button type="button" class="lightbox-close-btn" id="lightbox-close" title="Fechar">&times;</button>
+        <button type="button" class="lightbox-arrow lightbox-arrow-left" id="lightbox-prev" title="Anterior">&#10094;</button>
+        <button type="button" class="lightbox-arrow lightbox-arrow-right" id="lightbox-next" title="Seguinte">&#10095;</button>
+        
+        <div class="lightbox-media-box" id="lightbox-media-box">
+          <!-- <img> ou <video> inserido aqui -->
+        </div>
+
+        <div class="lightbox-caption">
+          <div class="lightbox-text">
+            <h4 id="lightbox-filename">foto.jpg</h4>
+            <p id="lightbox-meta">26 de Outubro de 2024 &bull; 2.4 MB</p>
+          </div>
+          <div class="lightbox-actions">
+            <button type="button" class="btn btn-outline btn-sm" id="lightbox-reveal-btn">
+              📂 Abrir no Windows
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>syncGallery &bull; Cópia de segurança 100% privada e local &bull; As suas fotos e vídeos reunidos numa só pasta, sem complicações.</p>
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

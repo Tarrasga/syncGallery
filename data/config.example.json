@@ -1,0 +1,13 @@
+{
+  "targetDir": "E:\\Backup_Fotos",
+  "backupGoogleDrive": true,
+  "backupOneDrive": true,
+  "backupLocalDisks": false,
+  "localDisksSource": "F:\\",
+  "oneDriveMode": "cloud",
+  "oneDriveLocalPath": "",
+  "includePhotos": true,
+  "includeVideos": true,
+  "incremental": true,
+  "subfolderOrganization": "flat"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "syncgallery",
+  "version": "1.0.0",
+  "description": "Aplicação para centralizar e juntar todas as fotos e vídeos do Google Drive, OneDrive, Pen Drives e Discos numa única pasta sem subpastas",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "keywords": [
+    "syncgallery",
+    "backup",
+    "photos",
+    "videos",
+    "google-drive",
+    "onedrive",
+    "usb",
+    "pen-drive",
+    "rclone"
+  ],
+  "author": "",
+  "license": "MIT"
+}
