@@ -1,20 +1,19 @@
 @echo off
-chcp 65001 >nul
-title syncGallery - Central de Fotos e Vídeos
+title syncGallery - Central de Fotos e Videos
 cls
 
 echo ===================================================================
-echo             📸 syncGallery - CENTRAL DE FOTOS E VÍDEOS
+echo             syncGallery - CENTRAL DE FOTOS E VIDEOS
 echo      Google Drive, Microsoft OneDrive, Pen Drives e Discos
 echo ===================================================================
 echo.
-echo  A verificar dependências do sistema...
+echo  A verificar dependencias do sistema...
 
 where node >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo.
-    echo [ERRO] O Node.js não foi encontrado no sistema.
-    echo Por favor instale o Node.js através de: https://nodejs.org
+    echo [ERRO] O Node.js nao foi encontrado no sistema.
+    echo Por favor instale o Node.js atraves de: https://nodejs.org
     echo.
     pause
     exit /b 1
@@ -22,12 +21,17 @@ if %ERRORLEVEL% neq 0 (
 
 echo  [OK] Node.js detectado com sucesso!
 echo.
+
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3344 ^| findstr LISTENING') do (
+    taskkill /F /PID %%a >nul 2>&1
+)
+
 echo  A iniciar o servidor syncGallery na porta 3344...
-echo  O painel web irá abrir automaticamente no seu navegador.
+echo  O painel web ira abrir automaticamente no seu navegador.
 echo.
 echo ===================================================================
-echo  Endereço da aplicação: http://localhost:3344
-echo  (Para parar a aplicação, basta fechar esta janela)
+echo  Endereco da aplicacao: http://localhost:3344
+echo  (Para parar a aplicacao, basta fechar esta janela)
 echo ===================================================================
 echo.
 

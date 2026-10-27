@@ -21,6 +21,11 @@ if %ERRORLEVEL% neq 0 (
 
 echo  [OK] Node.js detectado com sucesso!
 echo.
+
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3344 ^| findstr LISTENING') do (
+    taskkill /F /PID %%a >nul 2>&1
+)
+
 echo  A iniciar o servidor syncGallery na porta 3344...
 echo  O painel web ira abrir automaticamente no seu navegador.
 echo.

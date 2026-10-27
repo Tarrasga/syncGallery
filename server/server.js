@@ -1920,6 +1920,43 @@ const server = http.createServer((req, res) => {
   });
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`\n[AVISO] A porta ${PORT} ja esta ocupada por uma sessao anterior.`);
+    console.log(`A libertar a porta ${PORT} automaticamente...`);
+    try {
+      const { execSync } = require('child_process');
+      if (process.platform === 'win32') {
+        const out = execSync(`netstat -ano | findstr :${PORT} | findstr LISTENING`, { encoding: 'utf8' });
+        const lines = out.trim().split('\n');
+        for (const line of lines) {
+          const parts = line.trim().split(/\s+/);
+          const pid = parts[parts.length - 1];
+          if (pid && pid !== String(process.pid)) {
+            try {
+              execSync(`taskkill /F /PID ${pid}`);
+              console.log(`[OK] Sessao anterior terminada (PID: ${pid}).`);
+            } catch (_) {}
+          }
+        }
+      }
+      setTimeout(() => {
+        server.listen(PORT, () => {
+          console.log(`=======================================================`);
+          console.log(`  📸 syncGallery ativo!`);
+          console.log(`  🔗 Aceda no seu navegador: http://localhost:${PORT}`);
+          console.log(`=======================================================`);
+        });
+      }, 1000);
+      return;
+    } catch (e) {
+      console.error(`Nao foi possivel libertar a porta automaticamente: ${e.message}`);
+    }
+  }
+  console.error(`Erro no servidor: ${err.message}`);
+  process.exit(1);
+});
+
 server.listen(PORT, () => {
   console.log(`=======================================================`);
   console.log(`  📸 syncGallery ativo!`);
