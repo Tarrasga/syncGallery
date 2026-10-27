@@ -39,6 +39,10 @@
           📅 Calendário & Memórias ("Neste Dia")
           <span class="nav-badge" id="today-memories-badge" style="display: none;">0</span>
         </button>
+        <button type="button" class="nav-tab" id="tab-faces">
+          👥 Pessoas & Reconhecimento Facial
+          <span class="nav-badge" id="faces-count-badge" style="display: none;">0</span>
+        </button>
       </nav>
     </header>
 
@@ -480,6 +484,127 @@
 
       </div> <!-- /view-calendar -->
 
+      <!-- VIEW 3: PESSOAS & RECONHECIMENTO FACIAL -->
+      <div id="view-faces" style="display: none;">
+        
+        <!-- Card: Controlo de IA e Reconhecimento -->
+        <section class="card face-control-card">
+          <div class="spotlight-header">
+            <div class="spotlight-title-group">
+              <span class="spotlight-pill">🤖 INTELIGÊNCIA ARTIFICIAL PRIVADA</span>
+              <h2>Reconhecimento Facial de Pessoas</h2>
+              <p class="spotlight-subtitle">Analise as fotos diretamente no seu computador para agrupar e organizar por pessoas sem enviar nada para a internet.</p>
+            </div>
+
+            <div class="face-action-buttons">
+              <button type="button" class="btn btn-primary" id="btn-start-face-scan">
+                🔍 Iniciar Reconhecimento Facial
+              </button>
+              <button type="button" class="btn btn-danger" id="btn-stop-face-scan" style="display: none;">
+                ⏹️ Parar Deteção
+              </button>
+              <button type="button" class="btn btn-secondary" id="btn-organize-faces-folders">
+                📁 Arrumar Fotos em Pastas por Pessoa
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-reset-faces" title="Limpar dados e analisar de novo">
+                🔄 Reiniciar
+              </button>
+            </div>
+          </div>
+
+          <!-- Face Scanner Live Progress Box -->
+          <div class="face-progress-panel" id="face-progress-panel" style="display: none;">
+            <div class="progress-bar-wrapper">
+              <div class="progress-bar-fill" id="face-progress-bar" style="width: 0%;"></div>
+            </div>
+            
+            <div class="face-scan-stats">
+              <span id="face-scan-status-text">A inicializar modelos de inteligência artificial...</span>
+              <span id="face-scan-percent-text">0%</span>
+            </div>
+
+            <!-- Preview of currently scanned photo with face box overlay -->
+            <div class="face-scan-preview-box">
+              <div class="face-preview-wrapper">
+                <img id="face-scan-current-img" src="" alt="A analisar...">
+                <canvas id="face-scan-overlay-canvas"></canvas>
+              </div>
+              <div class="face-preview-details">
+                <span class="file-label">A analisar agora:</span>
+                <span class="file-name" id="face-scan-current-file">A preparar...</span>
+                <span class="face-detected-tag" id="face-scan-detected-count">0 rostos detetados</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Overall Stats Summary -->
+          <div class="face-stats-summary" id="face-stats-summary">
+            <div class="face-stat-item">
+              <span class="stat-number" id="stat-total-images">0</span>
+              <span class="stat-desc">Total de Fotos</span>
+            </div>
+            <div class="face-stat-item">
+              <span class="stat-number" id="stat-scanned-images">0</span>
+              <span class="stat-desc">Fotos Analisadas</span>
+            </div>
+            <div class="face-stat-item">
+              <span class="stat-number" id="stat-persons-found">0</span>
+              <span class="stat-desc">Pessoas Identificadas</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section: Overview of All Persons -->
+        <section class="card" id="persons-overview-section">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="card-icon">👥</span>
+              <div>
+                <h2>Pessoas Encontradas</h2>
+                <span class="info-pill" id="persons-header-count">0 pessoas</span>
+              </div>
+            </div>
+            <span class="info-pill">Clique numa pessoa para ver todas as suas fotos ou editar o nome</span>
+          </div>
+
+          <div class="persons-grid" id="persons-grid">
+            <!-- Dynamic Person Cards -->
+          </div>
+        </section>
+
+        <!-- Section: Person Photos View (Drill-down) -->
+        <section class="card" id="person-detail-section" style="display: none;">
+          <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <button type="button" class="btn btn-outline btn-sm" id="btn-back-to-persons">
+                ← Voltar às Pessoas
+              </button>
+              <div class="person-detail-avatar-box">
+                <img id="person-detail-avatar" src="" alt="Avatar">
+              </div>
+              <div>
+                <h2 id="person-detail-name">Nome da Pessoa</h2>
+                <span class="info-pill" id="person-detail-count">0 fotos</span>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-rename-person">
+                ✏️ Mudar Nome
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-merge-person">
+                🔗 Juntar com Outra Pessoa
+              </button>
+            </div>
+          </div>
+
+          <div class="memories-photo-grid" id="person-photos-grid">
+            <!-- Photo cards of selected person -->
+          </div>
+        </section>
+
+      </div> <!-- /view-faces -->
+
     </main>
 
     <!-- Lightbox Modal para Visualizar Fotos e Vídeos em Grande -->
@@ -515,6 +640,7 @@
 
   </div>
 
+  <script src="vendor/face-api.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

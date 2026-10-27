@@ -11,12 +11,35 @@ const BIN_DIR = path.join(ROOT_DIR, 'bin');
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
+const FACES_PATH = path.join(DATA_DIR, 'faces.json');
 const RCLONE_CONF = path.join(DATA_DIR, 'rclone.conf');
 const RCLONE_BIN = path.join(BIN_DIR, 'rclone.exe');
 
 // Ensure directories exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+
+// Face recognition persistent storage
+function loadFacesData() {
+  try {
+    if (fs.existsSync(FACES_PATH)) {
+      return JSON.parse(fs.readFileSync(FACES_PATH, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Erro ao ler faces.json:', e.message);
+  }
+  return { scannedFiles: [], persons: [] };
+}
+
+function saveFacesData(data) {
+  try {
+    fs.writeFileSync(FACES_PATH, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Erro ao salvar faces.json:', e.message);
+    return false;
+  }
+}
 
 // State
 let sseClients = [];
@@ -517,6 +540,100 @@ function getMediaIndex(targetDir) {
   lastCacheTime = now;
   lastCacheDir = targetDir;
   return index;
+}
+
+// Face Recognition Helpers
+function euclideanDistance(arr1, arr2) {
+  let sum = 0;
+  for (let i = 0; i < arr1.length; i++) {
+    const diff = arr1[i] - arr2[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
+function clusterDetections(newDetections, facesData, threshold = 0.55) {
+  if (!facesData.persons) facesData.persons = [];
+  if (!facesData.scannedFiles) facesData.scannedFiles = [];
+
+  for (const det of newDetections) {
+    if (!facesData.scannedFiles.includes(det.file)) {
+      facesData.scannedFiles.push(det.file);
+    }
+
+    if (!det.descriptor || det.descriptor.length !== 128) continue;
+
+    let bestPerson = null;
+    let minDistance = Infinity;
+
+    for (const person of facesData.persons) {
+      if (!person.descriptor) continue;
+      const dist = euclideanDistance(det.descriptor, person.descriptor);
+      if (dist < minDistance) {
+        minDistance = dist;
+        bestPerson = person;
+      }
+    }
+
+    if (bestPerson && minDistance < threshold) {
+      if (!bestPerson.files.includes(det.file)) {
+        bestPerson.files.push(det.file);
+      }
+      const n = bestPerson.descriptorsCount || 1;
+      for (let i = 0; i < 128; i++) {
+        bestPerson.descriptor[i] = (bestPerson.descriptor[i] * n + det.descriptor[i]) / (n + 1);
+      }
+      bestPerson.descriptorsCount = n + 1;
+      // If no avatar or current avatar is empty, set it
+      if (!bestPerson.avatar && det.avatar) {
+        bestPerson.avatar = det.avatar;
+      }
+    } else {
+      const personId = 'person_' + (Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5));
+      const personNumber = facesData.persons.length + 1;
+      facesData.persons.push({
+        id: personId,
+        name: `Pessoa ${personNumber}`,
+        avatar: det.avatar || '',
+        descriptor: det.descriptor,
+        descriptorsCount: 1,
+        files: [det.file]
+      });
+    }
+  }
+
+  saveFacesData(facesData);
+  return facesData;
+}
+
+function organizePhotosByPerson(facesData, targetDir) {
+  if (!fs.existsSync(targetDir)) throw new Error('Pasta de destino não encontrada: ' + targetDir);
+
+  const pessoasDir = path.join(targetDir, 'Pessoas');
+  if (!fs.existsSync(pessoasDir)) fs.mkdirSync(pessoasDir, { recursive: true });
+
+  let totalCopied = 0;
+  for (const person of facesData.persons) {
+    if (!person.files || person.files.length === 0) continue;
+
+    const safeName = (person.name || 'Pessoa').replace(/[<>:"/\\|?*]/g, '_').trim();
+    const personDir = path.join(pessoasDir, safeName);
+    if (!fs.existsSync(personDir)) fs.mkdirSync(personDir, { recursive: true });
+
+    for (const relFile of person.files) {
+      const srcPath = path.join(targetDir, relFile);
+      if (!fs.existsSync(srcPath)) continue;
+
+      const destPath = path.join(personDir, path.basename(relFile));
+      if (!fs.existsSync(destPath)) {
+        try {
+          fs.copyFileSync(srcPath, destPath);
+          totalCopied++;
+        } catch (e) {}
+      }
+    }
+  }
+  return { success: true, count: totalCopied, personsCount: facesData.persons.length };
 }
 
 // Get Google Drive Token and refresh if needed
@@ -1575,7 +1692,198 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 13. Static file serving from public/
+  // 13. Face Recognition Endpoints
+  if (pathname === '/api/faces/data' && req.method === 'GET') {
+    const config = loadConfig();
+    const folder = config.targetDir || 'E:\\Backup_Fotos';
+    const facesData = loadFacesData();
+
+    const allImages = [];
+    const imageExts = new Set(['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'bmp']);
+
+    function walk(dir) {
+      let entries = [];
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          // Do not scan inside generated Pessoas folder
+          if (entry.name.toLowerCase() === 'pessoas') continue;
+          walk(full);
+        } else if (entry.isFile()) {
+          if (entry.name.endsWith('.partial') || entry.name.endsWith('.tmp')) continue;
+          const ext = path.extname(entry.name).toLowerCase().replace('.', '');
+          if (imageExts.has(ext)) {
+            allImages.push(path.relative(folder, full).replace(/\\/g, '/'));
+          }
+        }
+      }
+    }
+    walk(folder);
+
+    const scannedSet = new Set(facesData.scannedFiles || []);
+    const pendingImages = allImages.filter(f => !scannedSet.has(f));
+
+    // Sort persons by number of photos descending
+    const persons = (facesData.persons || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      avatar: p.avatar,
+      photoCount: (p.files && p.files.length) || 0,
+      files: p.files || []
+    })).sort((a, b) => b.photoCount - a.photoCount);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      totalImages: allImages.length,
+      scannedCount: scannedSet.size,
+      pendingCount: pendingImages.length,
+      pendingImages: pendingImages,
+      persons: persons
+    }));
+    return;
+  }
+
+  if (pathname === '/api/faces/save-batch' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { detections } = JSON.parse(body);
+        const facesData = loadFacesData();
+        clusterDetections(detections || [], facesData);
+
+        const persons = (facesData.persons || []).map(p => ({
+          id: p.id,
+          name: p.name,
+          avatar: p.avatar,
+          photoCount: (p.files && p.files.length) || 0,
+          files: p.files || []
+        })).sort((a, b) => b.photoCount - a.photoCount);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          scannedCount: (facesData.scannedFiles || []).length,
+          persons: persons
+        }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (pathname === '/api/faces/rename-person' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { personId, name } = JSON.parse(body);
+        const facesData = loadFacesData();
+        const p = (facesData.persons || []).find(x => x.id === personId);
+        if (p) {
+          p.name = name.trim();
+          saveFacesData(facesData);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Pessoa não encontrada' }));
+        }
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (pathname === '/api/faces/merge-persons' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { sourceId, targetId } = JSON.parse(body);
+        const facesData = loadFacesData();
+        const src = (facesData.persons || []).find(x => x.id === sourceId);
+        const tgt = (facesData.persons || []).find(x => x.id === targetId);
+
+        if (src && tgt && src !== tgt) {
+          for (const f of src.files) {
+            if (!tgt.files.includes(f)) tgt.files.push(f);
+          }
+          if (src.descriptor && tgt.descriptor) {
+            const n1 = tgt.descriptorsCount || 1;
+            const n2 = src.descriptorsCount || 1;
+            for (let i = 0; i < 128; i++) {
+              tgt.descriptor[i] = (tgt.descriptor[i] * n1 + src.descriptor[i] * n2) / (n1 + n2);
+            }
+            tgt.descriptorsCount = n1 + n2;
+          }
+          facesData.persons = facesData.persons.filter(x => x.id !== sourceId);
+          saveFacesData(facesData);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Pessoas inválidas para junção' }));
+        }
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (pathname === '/api/faces/delete-person' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { personId } = JSON.parse(body);
+        const facesData = loadFacesData();
+        facesData.persons = (facesData.persons || []).filter(x => x.id !== personId);
+        saveFacesData(facesData);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (pathname === '/api/faces/organize-folders' && req.method === 'POST') {
+    const config = loadConfig();
+    const folder = config.targetDir || 'E:\\Backup_Fotos';
+    const facesData = loadFacesData();
+
+    addLog('A organizar fotografias em pastas por pessoa...', 'info');
+    try {
+      const result = organizePhotosByPerson(facesData, folder);
+      addLog(`Organização por pessoas concluída! ${result.count} fotos copiadas para as pastas de ${result.personsCount} pessoas.`, 'success');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, count: result.count, personsCount: result.personsCount }));
+    } catch (e) {
+      addLog(`Erro ao organizar por pessoas: ${e.message}`, 'error');
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  if (pathname === '/api/faces/reset' && req.method === 'POST') {
+    saveFacesData({ scannedFiles: [], persons: [] });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Reconhecimento facial reiniciado' }));
+    return;
+  }
+
+  // 14. Static file serving from public/
   let filePath = path.join(PUBLIC_DIR, pathname === '/' ? 'index.html' : pathname);
 
   if (!filePath.startsWith(PUBLIC_DIR)) {

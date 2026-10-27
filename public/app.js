@@ -609,24 +609,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // View Switching
   function switchView(view) {
+    tabBackup.classList.remove('active');
+    tabCalendar.classList.remove('active');
+    if (tabFaces) tabFaces.classList.remove('active');
+    viewBackup.style.display = 'none';
+    viewCalendar.style.display = 'none';
+    if (viewFaces) viewFaces.style.display = 'none';
+
     if (view === 'calendar') {
-      tabBackup.classList.remove('active');
       tabCalendar.classList.add('active');
-      viewBackup.style.display = 'none';
       viewCalendar.style.display = 'block';
       loadSpotlight();
       renderCalendar(currentCalYear, currentCalMonth);
       loadDayMemories(selectedMonth, selectedDay);
+    } else if (view === 'faces') {
+      if (tabFaces) tabFaces.classList.add('active');
+      if (viewFaces) viewFaces.style.display = 'block';
+      loadFacesOverview();
     } else {
-      tabCalendar.classList.remove('active');
       tabBackup.classList.add('active');
-      viewCalendar.style.display = 'none';
       viewBackup.style.display = 'block';
     }
   }
 
   tabBackup.addEventListener('click', () => switchView('backup'));
   tabCalendar.addEventListener('click', () => switchView('calendar'));
+  if (tabFaces) tabFaces.addEventListener('click', () => switchView('faces'));
 
   // 1. Load Spotlight (Today's memories)
   async function loadSpotlight() {
@@ -851,8 +859,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!item) return;
 
     lightboxFilename.textContent = item.name;
-    const dateFormatted = `${item.day} de ${monthNamesPt[item.month]} de ${item.year}`;
-    lightboxMeta.textContent = `${dateFormatted} • ${item.sizeFormatted || ''}`;
+    if (item.day && item.month && item.year) {
+      const dateFormatted = `${item.day} de ${monthNamesPt[item.month]} de ${item.year}`;
+      lightboxMeta.textContent = `${dateFormatted} • ${item.sizeFormatted || ''}`;
+    } else {
+      lightboxMeta.textContent = item.sizeFormatted || item.relPath || '';
+    }
 
     const mediaUrl = `/api/media?file=${encodeURIComponent(item.relPath)}`;
     lightboxMediaBox.innerHTML = '';
@@ -958,6 +970,566 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Preload spotlight in background so badge count is known on load
   loadSpotlight();
+
+  // ========================================================
+  // RECONHECIMENTO FACIAL E ORGANIZAÇÃO POR PESSOAS
+  // ========================================================
+  const tabFaces = document.getElementById('tab-faces');
+  const viewFaces = document.getElementById('view-faces');
+  const facesCountBadge = document.getElementById('faces-count-badge');
+
+  const btnStartFaceScan = document.getElementById('btn-start-face-scan');
+  const btnStopFaceScan = document.getElementById('btn-stop-face-scan');
+  const btnOrganizeFacesFolders = document.getElementById('btn-organize-faces-folders');
+  const btnResetFaces = document.getElementById('btn-reset-faces');
+
+  const faceProgressPanel = document.getElementById('face-progress-panel');
+  const faceProgressBar = document.getElementById('face-progress-bar');
+  const faceScanStatusText = document.getElementById('face-scan-status-text');
+  const faceScanPercentText = document.getElementById('face-scan-percent-text');
+  const faceScanCurrentImg = document.getElementById('face-scan-current-img');
+  const faceScanOverlayCanvas = document.getElementById('face-scan-overlay-canvas');
+  const faceScanCurrentFile = document.getElementById('face-scan-current-file');
+  const faceScanDetectedCount = document.getElementById('face-scan-detected-count');
+
+  const statTotalImages = document.getElementById('stat-total-images');
+  const statScannedImages = document.getElementById('stat-scanned-images');
+  const statPersonsFound = document.getElementById('stat-persons-found');
+
+  const personsOverviewSection = document.getElementById('persons-overview-section');
+  const personsHeaderCount = document.getElementById('persons-header-count');
+  const personsGrid = document.getElementById('persons-grid');
+
+  const personDetailSection = document.getElementById('person-detail-section');
+  const btnBackToPersons = document.getElementById('btn-back-to-persons');
+  const personDetailAvatar = document.getElementById('person-detail-avatar');
+  const personDetailName = document.getElementById('person-detail-name');
+  const personDetailCount = document.getElementById('person-detail-count');
+  const btnRenamePerson = document.getElementById('btn-rename-person');
+  const btnMergePerson = document.getElementById('btn-merge-person');
+  const personPhotosGrid = document.getElementById('person-photos-grid');
+
+  let isFaceScanning = false;
+  let modelsLoaded = false;
+  let currentPersonsList = [];
+  let currentSelectedPerson = null;
+
+  async function ensureModelsLoaded() {
+    if (modelsLoaded) return true;
+    if (typeof faceapi === 'undefined') {
+      throw new Error('A biblioteca face-api.js não foi carregada no navegador.');
+    }
+    if (faceScanStatusText) faceScanStatusText.textContent = 'A carregar modelos neurais locais (TinyFace, Landmarks, FaceNet)...';
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+      faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+      faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+    ]);
+    modelsLoaded = true;
+    return true;
+  }
+
+  function loadImageAsync(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Falha ao carregar imagem: ' + src));
+      img.src = src;
+    });
+  }
+
+  function extractFaceAvatar(img, box) {
+    try {
+      const margin = 0.25;
+      const x = Math.max(0, box.x - box.width * margin);
+      const y = Math.max(0, box.y - box.height * margin);
+      const w = Math.min(img.naturalWidth - x, box.width * (1 + margin * 2));
+      const h = Math.min(img.naturalHeight - y, box.height * (1 + margin * 2));
+
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = 120;
+      cropCanvas.height = 120;
+      const ctx = cropCanvas.getContext('2d');
+      ctx.drawImage(img, x, y, w, h, 0, 0, 120, 120);
+      return cropCanvas.toDataURL('image/jpeg', 0.85);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function drawFaceOverlay(img, detections) {
+    if (!faceScanOverlayCanvas) return;
+    const canvas = faceScanOverlayCanvas;
+    const previewWrapper = canvas.parentElement;
+    if (!previewWrapper) return;
+
+    const displayW = previewWrapper.clientWidth || 220;
+    const displayH = previewWrapper.clientHeight || 180;
+    canvas.width = displayW;
+    canvas.height = displayH;
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, displayW, displayH);
+    if (!detections || detections.length === 0) return;
+
+    const scale = Math.min(displayW / img.naturalWidth, displayH / img.naturalHeight);
+    const offsetX = (displayW - img.naturalWidth * scale) / 2;
+    const offsetY = (displayH - img.naturalHeight * scale) / 2;
+
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#2563eb';
+    ctx.fillStyle = 'rgba(37, 99, 235, 0.22)';
+
+    for (const det of detections) {
+      const box = det.detection.box;
+      const bx = offsetX + box.x * scale;
+      const by = offsetY + box.y * scale;
+      const bw = box.width * scale;
+      const bh = box.height * scale;
+
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.fillRect(bx, by, bw, bh);
+    }
+  }
+
+  async function loadFacesOverview() {
+    try {
+      const res = await fetch('/api/faces/data');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (statTotalImages) statTotalImages.textContent = data.totalImages || 0;
+      if (statScannedImages) statScannedImages.textContent = data.scannedCount || 0;
+      if (statPersonsFound) statPersonsFound.textContent = (data.persons || []).length;
+      if (personsHeaderCount) personsHeaderCount.textContent = `${(data.persons || []).length} pessoas`;
+
+      if (facesCountBadge) {
+        if (data.persons && data.persons.length > 0) {
+          facesCountBadge.style.display = 'inline-block';
+          facesCountBadge.textContent = data.persons.length;
+        } else {
+          facesCountBadge.style.display = 'none';
+        }
+      }
+
+      currentPersonsList = data.persons || [];
+      renderPersonsGrid();
+    } catch (e) {
+      console.error('Erro ao carregar dados faciais:', e);
+    }
+  }
+
+  function renderPersonsGrid() {
+    if (!personsGrid) return;
+    personsGrid.innerHTML = '';
+
+    if (currentPersonsList.length === 0) {
+      personsGrid.innerHTML = `
+        <div class="spotlight-empty" style="grid-column: 1 / -1;">
+          <span style="font-size: 38px; display: block; margin-bottom: 8px;">👥</span>
+          <p>Ainda não foram analisadas fotos ou nenhuma pessoa foi detetada.</p>
+          <small style="color: var(--text-muted);">Clique em <strong>"🔍 Iniciar Reconhecimento Facial"</strong> acima para analisar as fotos automaticamente no seu computador!</small>
+        </div>
+      `;
+      return;
+    }
+
+    currentPersonsList.forEach(person => {
+      const card = document.createElement('div');
+      card.className = 'person-card';
+
+      const avatarHtml = person.avatar
+        ? `<img src="${person.avatar}" alt="${person.name}" class="person-avatar-img">`
+        : `<div class="person-avatar-fallback">👤</div>`;
+
+      card.innerHTML = `
+        <div class="person-avatar-wrapper">
+          ${avatarHtml}
+          <span class="person-photo-count-badge">${person.photoCount}</span>
+        </div>
+        <div class="person-info">
+          <input type="text" class="person-name-input" value="${person.name}" title="Clique para editar o nome" spellcheck="false">
+          <span class="person-photo-count">${person.photoCount} fotos</span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm btn-view-person-photos">
+          🖼️ Ver Fotos
+        </button>
+      `;
+
+      // Inline renaming
+      const nameInput = card.querySelector('.person-name-input');
+      nameInput.addEventListener('change', async () => {
+        const newName = nameInput.value.trim();
+        if (!newName || newName === person.name) return;
+        try {
+          const res = await fetch('/api/faces/rename-person', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ personId: person.id, name: newName })
+          });
+          const resData = await res.json();
+          if (resData.success) {
+            person.name = newName;
+            addLocalLog(`Pessoa renomeada para "${newName}"`, 'info');
+          }
+        } catch (e) {
+          console.error('Erro ao renomear pessoa:', e);
+        }
+      });
+      nameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') nameInput.blur();
+      });
+
+      const btnView = card.querySelector('.btn-view-person-photos');
+      btnView.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showPersonDetail(person);
+      });
+
+      card.addEventListener('click', (e) => {
+        if (e.target.tagName && e.target.tagName.toLowerCase() === 'input') return;
+        showPersonDetail(person);
+      });
+
+      personsGrid.appendChild(card);
+    });
+  }
+
+  function showPersonDetail(person) {
+    currentSelectedPerson = person;
+    if (personsOverviewSection) personsOverviewSection.style.display = 'none';
+    if (personDetailSection) personDetailSection.style.display = 'block';
+
+    if (personDetailAvatar) {
+      if (person.avatar) {
+        personDetailAvatar.src = person.avatar;
+        personDetailAvatar.style.display = 'block';
+      } else {
+        personDetailAvatar.style.display = 'none';
+      }
+    }
+
+    if (personDetailName) personDetailName.textContent = person.name;
+    if (personDetailCount) personDetailCount.textContent = `${person.photoCount} fotos`;
+
+    if (!personPhotosGrid) return;
+    personPhotosGrid.innerHTML = '';
+
+    if (!person.files || person.files.length === 0) {
+      personPhotosGrid.innerHTML = '<p style="grid-column: 1 / -1; padding: 20px; color: var(--text-muted);">Nenhuma fotografia associada a esta pessoa.</p>';
+      return;
+    }
+
+    const personMediaItems = person.files.map(f => ({
+      relPath: f,
+      name: f.split('/').pop(),
+      type: 'photo',
+      sizeFormatted: ''
+    }));
+
+    person.files.forEach((fileRel, idx) => {
+      const filename = fileRel.split('/').pop();
+      const card = document.createElement('div');
+      card.className = 'photo-card';
+      const mediaUrl = `/api/media?file=${encodeURIComponent(fileRel)}`;
+
+      card.innerHTML = `
+        <img src="${mediaUrl}" alt="${filename}" loading="lazy">
+        <div class="photo-card-info">${filename}</div>
+      `;
+
+      card.addEventListener('click', () => {
+        openLightbox(personMediaItems, idx);
+      });
+
+      personPhotosGrid.appendChild(card);
+    });
+  }
+
+  if (btnBackToPersons) {
+    btnBackToPersons.addEventListener('click', () => {
+      if (personDetailSection) personDetailSection.style.display = 'none';
+      if (personsOverviewSection) personsOverviewSection.style.display = 'block';
+      currentSelectedPerson = null;
+      loadFacesOverview();
+    });
+  }
+
+  if (btnRenamePerson) {
+    btnRenamePerson.addEventListener('click', async () => {
+      if (!currentSelectedPerson) return;
+      const newName = prompt('Novo nome para esta pessoa:', currentSelectedPerson.name);
+      if (newName && newName.trim() && newName.trim() !== currentSelectedPerson.name) {
+        try {
+          const res = await fetch('/api/faces/rename-person', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ personId: currentSelectedPerson.id, name: newName.trim() })
+          });
+          const resData = await res.json();
+          if (resData.success) {
+            currentSelectedPerson.name = newName.trim();
+            if (personDetailName) personDetailName.textContent = currentSelectedPerson.name;
+            addLocalLog(`Pessoa renomeada para "${newName.trim()}"`, 'info');
+          }
+        } catch (e) {
+          alert('Erro ao renomear: ' + e.message);
+        }
+      }
+    });
+  }
+
+  if (btnMergePerson) {
+    btnMergePerson.addEventListener('click', async () => {
+      if (!currentSelectedPerson) return;
+      const otherPersons = currentPersonsList.filter(p => p.id !== currentSelectedPerson.id);
+      if (otherPersons.length === 0) {
+        alert('Não existem outras pessoas para juntar.');
+        return;
+      }
+
+      const listPrompt = otherPersons.map((p, idx) => `${idx + 1}. ${p.name} (${p.photoCount} fotos)`).join('\n');
+      const chosenStr = prompt(
+        `Juntar "${currentSelectedPerson.name}" com qual pessoa?\n\nDigite o número:\n${listPrompt}`
+      );
+      if (!chosenStr) return;
+      const chosenIdx = parseInt(chosenStr, 10) - 1;
+      if (isNaN(chosenIdx) || chosenIdx < 0 || chosenIdx >= otherPersons.length) {
+        alert('Opção inválida.');
+        return;
+      }
+
+      const targetPerson = otherPersons[chosenIdx];
+      const confirmMerge = confirm(
+        `Tem a certeza de que deseja juntar todas as fotos de "${currentSelectedPerson.name}" na pessoa "${targetPerson.name}"?`
+      );
+      if (!confirmMerge) return;
+
+      try {
+        const res = await fetch('/api/faces/merge-persons', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourceId: currentSelectedPerson.id, targetId: targetPerson.id })
+        });
+        const resData = await res.json();
+        if (resData.success) {
+          alert(`Pessoas unidas com sucesso em "${targetPerson.name}"!`);
+          if (btnBackToPersons) btnBackToPersons.click();
+        } else {
+          alert('Erro ao juntar: ' + (resData.error || 'Erro desconhecido'));
+        }
+      } catch (e) {
+        alert('Erro ao comunicar com o servidor: ' + e.message);
+      }
+    });
+  }
+
+  if (btnStartFaceScan) {
+    btnStartFaceScan.addEventListener('click', async () => {
+      if (isFaceScanning) return;
+      btnStartFaceScan.style.display = 'none';
+      if (btnStopFaceScan) btnStopFaceScan.style.display = 'inline-block';
+      if (faceProgressPanel) faceProgressPanel.style.display = 'block';
+      isFaceScanning = true;
+
+      try {
+        if (faceScanStatusText) faceScanStatusText.textContent = 'A verificar fotografias e modelos locais...';
+        await ensureModelsLoaded();
+
+        const dataRes = await fetch('/api/faces/data');
+        if (!dataRes.ok) throw new Error('Falha ao obter lista de imagens.');
+        const data = await dataRes.json();
+
+        if (statTotalImages) statTotalImages.textContent = data.totalImages || 0;
+        if (statScannedImages) statScannedImages.textContent = data.scannedCount || 0;
+        if (statPersonsFound) statPersonsFound.textContent = (data.persons || []).length;
+        currentPersonsList = data.persons || [];
+        renderPersonsGrid();
+
+        const pending = data.pendingImages || [];
+        const total = data.totalImages || 0;
+        let scanned = data.scannedCount || 0;
+
+        if (pending.length === 0) {
+          if (faceScanStatusText) faceScanStatusText.textContent = `Todas as ${total} fotos já foram analisadas!`;
+          if (faceProgressBar) faceProgressBar.style.width = '100%';
+          if (faceScanPercentText) faceScanPercentText.textContent = '100%';
+          isFaceScanning = false;
+          btnStartFaceScan.style.display = 'inline-block';
+          if (btnStopFaceScan) btnStopFaceScan.style.display = 'none';
+          return;
+        }
+
+        let batch = [];
+
+        async function flushScanBatch() {
+          if (batch.length === 0) return;
+          const sending = batch;
+          batch = [];
+          try {
+            const res = await fetch('/api/faces/save-batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ detections: sending })
+            });
+            const saved = await res.json();
+            if (saved.success) {
+              if (statScannedImages) statScannedImages.textContent = saved.scannedCount;
+              if (statPersonsFound) statPersonsFound.textContent = (saved.persons || []).length;
+              if (personsHeaderCount) personsHeaderCount.textContent = `${(saved.persons || []).length} pessoas`;
+              currentPersonsList = saved.persons || [];
+              if (facesCountBadge) {
+                if (currentPersonsList.length > 0) {
+                  facesCountBadge.style.display = 'inline-block';
+                  facesCountBadge.textContent = currentPersonsList.length;
+                }
+              }
+              renderPersonsGrid();
+            }
+          } catch (err) {
+            console.error('Erro ao guardar lote:', err);
+          }
+        }
+
+        for (let i = 0; i < pending.length; i++) {
+          if (!isFaceScanning) break;
+          const fileRel = pending[i];
+          scanned++;
+          const pct = Math.min(100, Math.round((scanned / total) * 100));
+
+          if (faceProgressBar) faceProgressBar.style.width = `${pct}%`;
+          if (faceScanPercentText) faceScanPercentText.textContent = `${pct}% (${scanned}/${total})`;
+          if (faceScanCurrentFile) faceScanCurrentFile.textContent = fileRel.split('/').pop();
+          if (faceScanStatusText) faceScanStatusText.textContent = `A analisar fotografia ${i + 1} de ${pending.length}...`;
+
+          try {
+            const mediaUrl = `/api/media?file=${encodeURIComponent(fileRel)}`;
+            const img = await loadImageAsync(mediaUrl);
+
+            if (faceScanCurrentImg) faceScanCurrentImg.src = mediaUrl;
+
+            // Detect faces with landmarks & 128-d descriptors
+            const detections = await faceapi.detectAllFaces(
+              img,
+              new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.45 })
+            ).withFaceLandmarks().withFaceDescriptors();
+
+            if (faceScanDetectedCount) {
+              faceScanDetectedCount.textContent = `${detections.length} ${detections.length === 1 ? 'rosto detetado' : 'rostos detetados'}`;
+            }
+
+            drawFaceOverlay(img, detections);
+
+            if (detections.length === 0) {
+              batch.push({ file: fileRel, descriptor: null });
+            } else {
+              for (const det of detections) {
+                const avatar = extractFaceAvatar(img, det.detection.box);
+                batch.push({
+                  file: fileRel,
+                  descriptor: Array.from(det.descriptor),
+                  avatar: avatar
+                });
+              }
+            }
+          } catch (err) {
+            console.warn('Erro ao processar imagem:', fileRel, err);
+            batch.push({ file: fileRel, descriptor: null });
+          }
+
+          if (batch.length >= 6) {
+            await flushScanBatch();
+          }
+        }
+
+        // Final batch
+        await flushScanBatch();
+
+        if (faceScanStatusText) {
+          faceScanStatusText.textContent = isFaceScanning
+            ? 'Análise facial concluída com sucesso!'
+            : 'Análise facial interrompida.';
+        }
+      } catch (err) {
+        console.error('Erro na análise facial:', err);
+        alert('Erro ao executar reconhecimento facial: ' + err.message);
+      } finally {
+        isFaceScanning = false;
+        btnStartFaceScan.style.display = 'inline-block';
+        if (btnStopFaceScan) btnStopFaceScan.style.display = 'none';
+        loadFacesOverview();
+      }
+    });
+  }
+
+  if (btnStopFaceScan) {
+    btnStopFaceScan.addEventListener('click', () => {
+      isFaceScanning = false;
+      btnStopFaceScan.disabled = true;
+      btnStopFaceScan.textContent = 'A parar...';
+      if (faceScanStatusText) faceScanStatusText.textContent = 'A interromper deteção...';
+      setTimeout(() => {
+        btnStopFaceScan.disabled = false;
+        btnStopFaceScan.textContent = '⏹️ Parar Deteção';
+        btnStopFaceScan.style.display = 'none';
+        if (btnStartFaceScan) btnStartFaceScan.style.display = 'inline-block';
+      }, 800);
+    });
+  }
+
+  if (btnOrganizeFacesFolders) {
+    btnOrganizeFacesFolders.addEventListener('click', async () => {
+      const confirmOrg = confirm(
+        'Deseja arrumar as fotografias em pastas individuais por pessoa na sua pasta de fotos?\n\n' +
+        'Será criada uma pasta "Pessoas\\<NomeDaPessoa>" para cada pessoa identificada com as respetivas fotos copiadas.'
+      );
+      if (!confirmOrg) return;
+
+      btnOrganizeFacesFolders.disabled = true;
+      btnOrganizeFacesFolders.textContent = '⏳ A arrumar pastas...';
+
+      try {
+        const res = await fetch('/api/faces/organize-folders', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Organização concluída!\n\nForam copiadas ${data.count} fotografias para as pastas de ${data.personsCount} pessoas.`);
+          addLocalLog(`Fotos organizadas em pastas por pessoa (${data.count} fotos, ${data.personsCount} pessoas).`, 'success');
+        } else {
+          alert('Erro ao organizar pastas: ' + (data.error || 'Erro desconhecido'));
+        }
+      } catch (e) {
+        alert('Erro ao comunicar com o servidor: ' + e.message);
+      } finally {
+        btnOrganizeFacesFolders.disabled = false;
+        btnOrganizeFacesFolders.textContent = '📁 Arrumar Fotos em Pastas por Pessoa';
+      }
+    });
+  }
+
+  if (btnResetFaces) {
+    btnResetFaces.addEventListener('click', async () => {
+      const confirmReset = confirm(
+        'Tem a certeza de que deseja reiniciar o reconhecimento facial?\n\n' +
+        'Isto irá limpar todos os agrupamentos e identificações de pessoas para analisar tudo de novo do zero.'
+      );
+      if (!confirmReset) return;
+
+      try {
+        const res = await fetch('/api/faces/reset', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          alert('Dados de reconhecimento facial reiniciados.');
+          loadFacesOverview();
+        }
+      } catch (e) {
+        alert('Erro ao reiniciar: ' + e.message);
+      }
+    });
+  }
+
+  // Preload faces data
+  loadFacesOverview();
 
   // Start app
   fetchStatus();

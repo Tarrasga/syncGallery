@@ -48,23 +48,33 @@ O servidor local é iniciado e o painel visual abre automaticamente no seu naveg
    - **Explorador por Dia:** Ao clicar em qualquer dia no calendário, apresenta todas as fotos e vídeos tirados nessa data agrupados por ano.
    - **Visualizador Integrado (Lightbox):** Clique em qualquer foto ou vídeo para ver em ecrã grande com suporte de navegação (setas do teclado), reprodução de vídeos e botão para revelar o ficheiro no Explorador do Windows.
 
+8. **👥 Reconhecimento Facial & Organização por Pessoas (100% Local & Privado):**
+   - **Inteligência Artificial 100% Local:** Utiliza redes neuronais pré-treinadas (TinyFace, Face Landmarks 68 e FaceNet de 128 dimensões) executadas localmente com aceleração de hardware (WebGL / WebGPU). Nenhuma imagem é transmitida para a nuvem.
+   - **Agrupamento Automático por Similaridade:** Compara vetores faciais euclidianos para associar fotografias da mesma pessoa através de diferentes idades, ângulos e iluminações.
+   - **Gestão de Perfis de Pessoas:** Veja avatares circulares de cada pessoa identificada, altere os nomes facilmente (ex.: "Tiago", "Maria", "Mãe") e junte perfis com 1 clique.
+   - **Galeria por Pessoa:** Clique em qualquer pessoa para explorar todas as suas fotos individuais no visualizador.
+   - **📁 Arrumar Fotos em Pastas por Pessoa:** Botão com um clique para copiar e organizar as fotos em pastas individuais por pessoa (`E:\Backup_Fotos\Pessoas\<NomeDaPessoa>\`).
+
 ---
 
 ## 📂 Estrutura do Projeto
 
 ```text
-gravi/
+syncGallery/
 ├── bin/
 │   └── rclone.exe            # Motor de sincronização otimizado para nuvem
 ├── data/
 │   ├── config.json           # Definições guardadas (pastas, preferências)
+│   ├── faces.json            # Base de dados de vetores e perfis faciais
 │   └── rclone.conf           # Tokens de autenticação encriptados localmente
 ├── public/
 │   ├── index.html            # Interface web do painel syncGallery
-│   ├── app.js                # Controlador do painel e ligação em tempo real
-│   └── styles.css            # Estilos visuais modernos
+│   ├── app.js                # Controlador do painel, calendário e IA facial
+│   ├── styles.css            # Estilos visuais modernos
+│   ├── models/               # Pesos das redes neuronais de reconhecimento facial
+│   └── vendor/               # Biblioteca face-api.min.js para execução local
 ├── server/
-│   ├── server.js             # Servidor HTTP Node.js e orquestrador
+│   ├── server.js             # Servidor HTTP Node.js, clustering facial e orquestrador
 │   └── setup-onedrive.js     # Assistente de configuração direta do OneDrive
 ├── Iniciar-syncGallery.bat    # Atalho principal para abrir a aplicação
 ├── Iniciar-Backup.bat         # Atalho alternativo de arranque
